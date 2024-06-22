@@ -1,35 +1,7 @@
-import logo from "./logo.svg";
-
-// // 以下が認証機能のためのインポート文
-// import "@aws-amplify/ui-react/styles.css";
-// import {
-//   withAuthenticator,
-//   Button,
-//   Heading,
-//   Image,
-//   View,
-//   Card,
-// } from "@aws-amplify/ui-react";
-
-// function App({ signOut }) {
-//   return (
-//     <View className="App">
-//       <Card>
-//         <Image src={logo} className="App-logo" alt="logo" />
-//         <Heading level={1}>We now have Auth!</Heading>
-//       </Card>
-//       {/* サインアウトボタンの追加 */}
-//       <Button onClick={signOut}>Sign Out</Button>
-//     </View>
-//   );
-// }
-
-// // withAuthenticatorコンポーネントを利用
-// export default withAuthenticator(App);
-
 import "./App.css";
 import { Amplify } from 'aws-amplify';
 import { generateClient } from 'aws-amplify/api';
+import { getCurrentUser, signOut } from 'aws-amplify/auth';
 import config from './amplifyconfiguration.json';
 import "@aws-amplify/ui-react/styles.css";
 import {
@@ -59,6 +31,7 @@ import { EditTodoModal } from "./components/EditTodoModal";
 // Amplify の設定
 Amplify.configure(config);
 
+// API クライアントの生成
 const client = generateClient();
 
 function App({ signOut }) {
@@ -69,19 +42,27 @@ function App({ signOut }) {
   const [isOpenEditModal, setIsOpenEditModal] = useState(false);
 
   useEffect(() => {
-    client.Auth.currentAuthenticatedUser().then((userInfo) => {
-      setUser({ id: userInfo.attributes.sub, name: userInfo.username });
-    });
-  }, []);
-
-  useEffect(() => {
+    fetchUser();
     fetchTodos();
   }, []);
 
+  async function fetchUser() {
+    try {
+      const userInfo = await getCurrentUser();
+      setUser({ id: userInfo.userId, name: userInfo.username });
+    } catch (error) {
+      console.error("Error fetching user", error);
+    }
+  }
+
   async function fetchTodos() {
-    const apiData = await client.API.graphql({ query: listTodos });
-    const todosFromAPI = apiData.data.listTodos.items;
-    setTodos(todosFromAPI);
+    try {
+      const apiData = await client.graphql({ query: listTodos });
+      const todosFromAPI = apiData.data.listTodos.items;
+      setTodos(todosFromAPI);
+    } catch (error) {
+      console.error("Error fetching todos", error);
+    }
   }
 
   function handleAddModal() {
@@ -102,11 +83,15 @@ function App({ signOut }) {
       description: event.description,
       user: event.user,
     };
-    await client.API.graphql({
-      query: createTodoMutation,
-      variables: { input: data },
-    });
-    fetchTodos();
+    try {
+      await client.graphql({
+        query: createTodoMutation,
+        variables: { input: data },
+      });
+      fetchTodos();
+    } catch (error) {
+      console.error("Error creating todo", error);
+    }
   }
 
   async function updateTodo(event) {
@@ -120,20 +105,28 @@ function App({ signOut }) {
       description: event.description,
       user: event.user,
     };
-    await client.API.graphql({
-      query: updateTodoMutation,
-      variables: { input: data },
-    });
-    fetchTodos();
+    try {
+      await client.graphql({
+        query: updateTodoMutation,
+        variables: { input: data },
+      });
+      fetchTodos();
+    } catch (error) {
+      console.error("Error updating todo", error);
+    }
   }
 
   async function deleteTodo({ id }) {
     const newTodos = todos.filter((todo) => todo.id !== id);
     setTodos(newTodos);
-    await client.API.graphql({
-      query: deleteTodoMutation,
-      variables: { input: { id } },
-    });
+    try {
+      await client.graphql({
+        query: deleteTodoMutation,
+        variables: { input: { id } },
+      });
+    } catch (error) {
+      console.error("Error deleting todo", error);
+    }
   }
 
   return (
@@ -185,7 +178,7 @@ function App({ signOut }) {
                 <TableCell as="th">Status</TableCell>
                 <TableCell as="th">Priority</TableCell>
                 <TableCell as="th">Milestone</TableCell>
-                <TableCell as="th">Discription</TableCell>
+                <TableCell as="th">Description</TableCell>
                 <TableCell as="th"></TableCell>
               </TableRow>
             </TableHead>
